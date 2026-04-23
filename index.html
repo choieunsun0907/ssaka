@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>싸카스포츠 가격비교 - 네이버 API 연동</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ===== 헤더 ===== -->
+<header class="header" id="header">
+  <div class="header-inner">
+    <a href="#" class="logo" onclick="showPage('home'); return false;">
+      <span class="logo-brand">싸카스포츠</span> <span class="logo-desc">가격비교 사이트<span class="logo-api">(네이버API연동)</span></span>
+    </a>
+    <div class="search-bar-header" id="headerSearch">
+      <input type="text" id="headerSearchInput" placeholder="상품명을 검색하세요..." autocomplete="off">
+      <button onclick="doSearch()" class="search-btn-sm">🔍</button>
+    </div>
+    <nav class="header-nav">
+      <a href="#" onclick="showPage('home'); return false;">홈</a>
+      <a href="#" onclick="showPage('wishlist'); return false;">❤️ 위시리스트</a>
+      <a href="#" onclick="showPage('compare'); return false;">📊 비교</a>
+    </nav>
+    <button class="hamburger" onclick="toggleMenu()">☰</button>
+  </div>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#" onclick="showPage('home'); toggleMenu(); return false;">🏠 홈</a>
+    <a href="#" onclick="showPage('wishlist'); toggleMenu(); return false;">❤️ 위시리스트</a>
+    <a href="#" onclick="showPage('compare'); toggleMenu(); return false;">📊 비교</a>
+  </div>
+</header>
+
+<!-- ===== 홈 페이지 ===== -->
+<div id="page-home" class="page active">
+  <!-- 히어로 검색 -->
+  <section class="hero">
+    <div class="hero-content">
+      <h1 class="hero-title">
+        <span class="hero-blue">최저가</span>를 찾아드립니다
+      </h1>
+      <p class="hero-sub">네이버 쇼핑 실시간 데이터로 여러 쇼핑몰 가격을 한눈에</p>
+      <div class="hero-search">
+        <input type="text" id="heroSearchInput" placeholder="어떤 상품을 찾으세요? (예: 축구화, 오클리 선글라스...)" autocomplete="off"
+               onkeypress="if(event.key==='Enter') doHeroSearch()">
+        <button onclick="doHeroSearch()" class="hero-search-btn">🔍 검색</button>
+      </div>
+      <div class="hero-chips">
+        <span class="chip" onclick="searchChip('축구화')">⚽ 축구화</span>
+        <span class="chip" onclick="searchChip('축구유니폼')">👕 축구유니폼</span>
+        <span class="chip" onclick="searchChip('국가대표 유니폼')">🇰🇷 국가대표</span>
+        <span class="chip" onclick="searchChip('트레이닝복')">🏃 트레이닝복</span>
+        <span class="chip" onclick="searchChip('축구용품')">🎽 축구용품</span>
+        <span class="chip" onclick="searchChip('오클리 선글라스')">🕶️ 오클리</span>
+        <span class="chip" onclick="searchChip('선글라스')">😎 선글라스</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 카테고리 탭 -->
+  <section class="category-section">
+    <div class="container">
+      <div class="tab-row" id="categoryTabs">
+        <button class="tab-btn active" onclick="selectCategory('축구화', this)">⚽ 축구화</button>
+        <button class="tab-btn" onclick="selectCategory('축구유니폼', this)">👕 축구유니폼</button>
+        <button class="tab-btn" onclick="selectCategory('국가대표 유니폼', this)">🇰🇷 국가대표</button>
+        <button class="tab-btn" onclick="selectCategory('트레이닝복', this)">🏃 트레이닝복</button>
+        <button class="tab-btn" onclick="selectCategory('축구용품', this)">🎽 축구용품</button>
+        <button class="tab-btn" onclick="selectCategory('오클리', this)">🕶️ 오클리</button>
+        <button class="tab-btn" onclick="selectCategory('선글라스', this)">😎 선글라스</button>
+      </div>
+
+      <!-- 로딩 -->
+      <div id="homeLoading" class="loading-wrap">
+        <div class="spinner"></div>
+        <p>상품 불러오는 중...</p>
+      </div>
+
+      <!-- 상품 그리드 -->
+      <div class="product-grid" id="homeGrid"></div>
+
+      <!-- 더 보기 -->
+      <div class="load-more-wrap" id="loadMoreWrap" style="display:none">
+        <button class="load-more-btn" onclick="loadMore()">더 보기 ↓</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ===== 검색결과 페이지 ===== -->
+<div id="page-search" class="page">
+  <div class="container">
+    <div class="search-result-header">
+      <h2 id="searchResultTitle">검색결과</h2>
+      <div class="sort-wrap">
+        <select id="sortSelect" onchange="changeSortAndSearch()">
+          <option value="sim">정확도순</option>
+          <option value="asc">가격 낮은순</option>
+          <option value="dsc">가격 높은순</option>
+          <option value="date">최신순</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="searchLoading" class="loading-wrap" style="display:none">
+      <div class="spinner"></div>
+      <p>검색 중...</p>
+    </div>
+
+    <div class="product-grid" id="searchGrid"></div>
+
+    <div class="load-more-wrap" id="searchLoadMoreWrap" style="display:none">
+      <button class="load-more-btn" onclick="loadMoreSearch()">더 보기 ↓</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 상세 페이지 ===== -->
+<div id="page-detail" class="page">
+  <div class="container">
+    <button class="back-btn" onclick="goBack()">← 뒤로가기</button>
+    <div class="detail-wrap" id="detailContent"></div>
+  </div>
+</div>
+
+<!-- ===== 위시리스트 페이지 ===== -->
+<div id="page-wishlist" class="page">
+  <div class="container">
+    <h2 class="page-title">❤️ 위시리스트</h2>
+    <div class="product-grid" id="wishlistGrid"></div>
+    <div id="wishlistEmpty" class="empty-state" style="display:none">
+      <div class="empty-icon">❤️</div>
+      <p>위시리스트가 비어있어요</p>
+      <button onclick="showPage('home')" class="btn-primary">상품 둘러보기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 비교 페이지 ===== -->
+<div id="page-compare" class="page">
+  <div class="compare-wrap">
+
+    <!-- ── 비교 헤더 ── -->
+    <div class="cmp-header">
+      <div class="cmp-header-top">
+        <div class="cmp-title-group">
+          <h2 class="cmp-title">📊 상품 비교</h2>
+          <span class="cmp-badge" id="compareCountBadge">0 / 3</span>
+        </div>
+        <p class="cmp-sub">최대 4개 상품 비교 · 카드를 클릭하거나 체크박스를 선택 → 상품코드·가격·링크 저장</p>
+      </div>
+    </div>
+
+    <!-- ── 저장 툴바 (상품 있을 때만 표시) ── -->
+    <div class="cmp-toolbar" id="compareToolbar" style="display:none;">
+
+      <!-- 좌측: 전체선택 + 선택 카운트 -->
+      <div class="cmp-toolbar-left">
+        <label class="cmp-checkall-label" id="checkAllLabel" onclick="toggleCheckAll(document.getElementById('checkAll'))">
+          <span class="cmp-checkall-box" id="checkAllBox"></span>
+          <input type="checkbox" id="checkAll" style="position:absolute;opacity:0;width:0;height:0;" onclick="event.stopPropagation()">
+          <span class="cmp-checkall-text">전체 선택</span>
+        </label>
+        <span class="cmp-sel-count" id="selectedCount">0개 선택됨</span>
+      </div>
+
+      <!-- 우측: 저장/삭제 버튼 -->
+      <div class="cmp-toolbar-right">
+        <button class="cmp-btn cmp-btn-txt" onclick="exportSelectedText()">
+          <span class="cmp-btn-icon">📄</span>
+          <span>텍스트 저장</span>
+          <span class="cmp-btn-ext">.txt</span>
+        </button>
+        <button class="cmp-btn cmp-btn-csv" onclick="exportSelectedCSV()">
+          <span class="cmp-btn-icon">📊</span>
+          <span>엑셀 저장</span>
+          <span class="cmp-btn-ext">.csv</span>
+        </button>
+        <button class="cmp-btn cmp-btn-del" onclick="deleteSelected()">
+          <span class="cmp-btn-icon">🗑️</span>
+          <span>선택 삭제</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── 3열 비교 카드 그리드 ── -->
+    <div id="compareItems" class="cmp-grid"></div>
+
+    <!-- ── 빈 상태 ── -->
+    <div id="compareEmpty" class="cmp-empty">
+      <div class="cmp-empty-icon">📊</div>
+      <p class="cmp-empty-title">비교할 상품이 없어요</p>
+      <p class="cmp-empty-sub">상품카드에서 <strong>+ 비교하기</strong> 버튼을 눌러 추가하세요</p>
+      <button onclick="showPage('home')" class="btn-primary" style="margin-top:20px;">상품 둘러보기</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== 하단 내비 (모바일) ===== -->
+<nav class="bottom-nav">
+  <a href="#" onclick="showPage('home'); return false;" class="bottom-nav-item active" id="nav-home">
+    <span class="nav-icon">🏠</span>
+    <span>홈</span>
+  </a>
+  <a href="#" onclick="showPage('search'); return false;" class="bottom-nav-item" id="nav-search">
+    <span class="nav-icon">🔍</span>
+    <span>검색</span>
+  </a>
+  <a href="#" onclick="showPage('compare'); return false;" class="bottom-nav-item" id="nav-compare">
+    <span class="nav-icon">📊</span>
+    <span>비교</span>
+  </a>
+  <a href="#" onclick="showPage('wishlist'); return false;" class="bottom-nav-item" id="nav-wishlist">
+    <span class="nav-icon">❤️</span>
+    <span>위시리스트</span>
+  </a>
+</nav>
+
+<!-- 토스트 -->
+<div id="toast" class="toast"></div>
+
+<!-- 제작자 푸터 -->
+<footer class="site-footer">
+  <p class="footer-copy">© 2025 싸카스포츠 가격비교 &nbsp;|&nbsp; 제작 : <strong>최은선</strong> &nbsp;|&nbsp; 네이버 쇼핑 API 연동</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
