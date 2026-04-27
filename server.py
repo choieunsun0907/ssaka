@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────
 # 네이버 쇼핑 API
 # ──────────────────────────────────────────
-def search_naver(query, display=20, start=1, sort='rel'):
+def search_naver(query, display=20, start=1, sort='sim'):
     """네이버 쇼핑 API 검색"""
     encoded_query = urllib.parse.quote(query)
     url = (
@@ -136,9 +136,15 @@ class PriceHubHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        parsed = urllib.parse.urlparse(self.path)
+        # ✅ 한글 URL 인코딩 문제 해결: raw_path를 UTF-8로 명시 디코딩
+        raw_path = self.path
+        try:
+            raw_path = raw_path.encode('latin-1').decode('utf-8')
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            pass
+        parsed = urllib.parse.urlparse(raw_path)
         path   = parsed.path
-        params = urllib.parse.parse_qs(parsed.query)
+        params = urllib.parse.parse_qs(parsed.query, encoding='utf-8')
 
         if path == '/api/search':
             self.handle_search(params)

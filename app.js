@@ -3,7 +3,7 @@ const state = {
   currentPage: 'home',
   prevPage: 'home',
   currentQuery: '',
-  currentSort: 'rel',   // 기본 정렬: 네이버 랭킹순
+  currentSort: 'sim',   // 기본 정렬: 정확도순 (네이버 API 랭킹 기준)
   homeStart: 1,
   searchStart: 1,
   homeCategory: '축구화',
@@ -48,7 +48,7 @@ const BASE_URL = (
   : window.location.origin;  // 로컬 / 샌드박스 직접 접속 → 자동 감지
 
 /* ===== API 호출 ===== */
-async function apiSearch(query, sort = 'rel', start = 1, display = 20) {
+async function apiSearch(query, sort = 'sim', start = 1, display = 20) {
   const url = `${BASE_URL}/api/search?q=${encodeURIComponent(query)}&sort=${sort}&start=${start}&display=${display}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -171,7 +171,7 @@ async function selectCategory(category, btn) {
   document.getElementById('loadMoreWrap').style.display = 'none';
 
   try {
-    const data = await apiSearch(category, 'rel', 1, 16);
+    const data = await apiSearch(category, 'sim', 1, 16);
     renderHomeGrid(data.items || [], false);
     if ((data.total || 0) > 16) {
       document.getElementById('loadMoreWrap').style.display = 'block';
@@ -195,7 +195,7 @@ function renderHomeGrid(items, append) {
 async function loadMore() {
   state.homeStart += 16;
   try {
-    const data = await apiSearch(state.homeCategory, 'rel', state.homeStart, 16);
+    const data = await apiSearch(state.homeCategory, 'sim', state.homeStart, 16);
     renderHomeGrid(data.items || [], true);
     if (state.homeStart + 16 > (data.total || 0)) {
       document.getElementById('loadMoreWrap').style.display = 'none';
