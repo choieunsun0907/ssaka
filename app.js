@@ -12,6 +12,26 @@ const state = {
   currentDetail: null,
 };
 
+/* ===== 내부 아이템 레지스트리 (id → item 매핑, shops 보존용) ===== */
+const _itemRegistry = new Map();
+function _registerItem(item) {
+  if (!item) return item;
+  // id가 없거나 빈 문자열이면 임시 고유 id 부여
+  if (!item.id) {
+    item.id = 'gen_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  }
+  // 기존에 shops 없으면 registry에서 보완
+  const existing = _itemRegistry.get(item.id);
+  if (existing && existing.shops && existing.shops.length > 0 && (!item.shops || item.shops.length === 0)) {
+    item.shops = existing.shops;
+  }
+  _itemRegistry.set(item.id, item);
+  return item;
+}
+function _getItem(id) {
+  return _itemRegistry.get(id) || null;
+}
+
 /* ===== API 베이스 URL ===== */
 // GitHub Pages / price.ssakasports.com 둘 다 샌드박스 API 서버 사용 (임시)
 // → 로컬:         http://localhost:5060
@@ -110,6 +130,7 @@ function renderSearchResults(items, append) {
   const grid = document.getElementById('searchGrid');
   if (!append) grid.innerHTML = '';
   items.forEach(item => {
+    _registerItem(item);
     grid.appendChild(createProductCard(item));
   });
   if (items.length === 0 && !append) {
@@ -165,7 +186,10 @@ async function selectCategory(category, btn) {
 function renderHomeGrid(items, append) {
   const grid = document.getElementById('homeGrid');
   if (!append) grid.innerHTML = '';
-  items.forEach(item => grid.appendChild(createProductCard(item)));
+  items.forEach(item => {
+    _registerItem(item);
+    grid.appendChild(createProductCard(item));
+  });
 }
 
 async function loadMore() {
@@ -227,21 +251,19 @@ function createProductCard(item) {
 
   // 이 카드 item 저장 (toggle에서 쓸 수 있게)
   card._item = item;
+  _registerItem(item); // 레지스트리에 등록 (shops 보존)
 
   return card;
 }
 
 /* ===== 상세 페이지 ===== */
-function showDetail(item) {
-  state.currentDetail = item;
-  state.prevPage = state.currentPage;
-
+function _renderDetailContent(item) {
   const shops = item.shops || [];
   const bestShop = shops[0];
   const isWished = state.wishlist.some(w => w.id === item.id);
+  const safeId = String(item.id || '').replace(/'/g, "\\'");
 
-  const content = document.getElementById('detailContent');
-  content.innerHTML = `
+  return `
     <div class="detail-top">
       <div class="detail-img-section">
         <img class="detail-img" 
@@ -266,12 +288,12 @@ function showDetail(item) {
             <a href="${item.link || '#'}" target="_blank" rel="noopener" class="btn-orange">
               🛍️ 네이버 최저가 보기
             </a>
-            <button class="btn-wishlist" onclick="toggleWishlistDetail('${escAttr(item.id)}')" id="wishBtn">
+            <button class="btn-wishlist" onclick="toggleWishlistDetail('${safeId}')" id="wishBtn">
               ${isWished ? '❤️' : '🤍'}
             </button>
           </div>
           <div class="detail-btn-row" style="margin-top:0">
-            <button class="btn-primary" onclick="toggleCompareFromDetail('${escAttr(item.id)}')">
+            <button class="btn-primary" onclick="toggleCompareFromDetail('${safeId}')">
               📊 비교에 추가
             </button>
           </div>
@@ -281,27 +303,56 @@ function showDetail(item) {
 
     <div class="shop-compare-section">
       <div class="shop-compare-title">🏪 쇼핑몰별 가격 비교</div>
-      ${shops.map((shop, idx) => `
-        <a href="${escAttr(shop.url)}" target="_blank" rel="noopener" class="shop-row">
-          <div class="shop-logo-wrap">${shop.logo || '🛒'}</div>
-          <div class="shop-info">
-            <div class="shop-name">
-              ${escHtml(shop.name)}
-              ${shop.badge ? `<span class="shop-badge">${escHtml(shop.badge)}</span>` : ''}
-            </div>
-          </div>
-          <div class="shop-price-wrap">
-            <div class="shop-price ${idx === 0 ? 'best' : ''}">
-              ${(shop.price || 0).toLocaleString()}<span class="shop-price-unit">원</span>
-            </div>
-          </div>
-          <div class="shop-arrow">→</div>
-        </a>
-      `).join('')}
+      ${shops.length === 0
+        ? `<div style="padding:24px;color:#999;text-align:center;">쇼핑몰 정보를 불러오는 중...</div>`
+        : shops.map((shop, idx) => {
+            const shopUrl = shop.url || '#';
+            return `
+              <a href="${shopUrl}" target="_blank" rel="noopener" class="shop-row">
+                <div class="shop-logo-wrap">${shop.logo || '🛒'}</div>
+                <div class="shop-info">
+                  <div class="shop-name">
+                    ${escHtml(shop.name)}
+                    ${shop.badge ? `<span class="shop-badge">${escHtml(shop.badge)}</span>` : ''}
+                  </div>
+                </div>
+                <div class="shop-price-wrap">
+                  <div class="shop-price ${idx === 0 ? 'best' : ''}">
+                    ${(shop.price || 0).toLocaleString()}<span class="shop-price-unit">원</span>
+                  </div>
+                </div>
+                <div class="shop-arrow">→</div>
+              </a>`;
+          }).join('')
+      }
     </div>
   `;
+}
 
+async function showDetail(item) {
+  // registry에서 shops가 있는 최신 버전 가져오기
+  if (item && item.id) {
+    const registered = _getItem(item.id);
+    if (registered && registered.shops && registered.shops.length > 0) {
+      item = registered;
+    }
+  }
+
+  state.currentDetail = item;
+  state.prevPage = state.currentPage;
+
+  const content = document.getElementById('detailContent');
+
+  // 우선 기본 UI 표시 (shops 없어도)
+  content.innerHTML = _renderDetailContent(item);
   showPage('detail');
+
+  // shops 없으면 API에서 보완 후 재렌더링
+  if (!item.shops || item.shops.length === 0) {
+    item = await _ensureShops(item);
+    state.currentDetail = item;
+    content.innerHTML = _renderDetailContent(item);
+  }
 }
 
 /* ===== 위시리스트 ===== */
@@ -350,6 +401,7 @@ function renderWishlist() {
   empty.style.display = 'none';
   grid.innerHTML = '';
   state.wishlist.forEach(item => {
+    _registerItem(item); // registry에 등록
     const card = createProductCard(item);
     grid.appendChild(card);
   });
@@ -357,6 +409,39 @@ function renderWishlist() {
 
 /* ===== 비교 ===== */
 const MAX_COMPARE = 4;
+
+// compareList 아이템들 registry에 등록 (shops가 없으면 API로 보완)
+async function _ensureShops(item) {
+  if (item.shops && item.shops.length > 0) {
+    _registerItem(item);
+    return item;
+  }
+  // shops가 없으면 API로 가져오기
+  try {
+    const data = await apiSearch(item.title || item.id, 'sim', 1, 1);
+    const found = (data.items || []).find(i => i.id === item.id || i.title === item.title);
+    if (found && found.shops) {
+      item.shops = found.shops;
+    } else if (data.items && data.items[0] && data.items[0].shops) {
+      // 정확히 일치하지 않아도 첫 번째 검색 결과 shops 사용
+      item.shops = data.items[0].shops.map(s => ({
+        ...s,
+        name: s.name,
+        url: s.url,
+        price: s.price,
+        logo: s.logo,
+        badge: s.badge,
+      }));
+    }
+  } catch (e) {
+    // shops 보완 실패 시 기본값 사용
+    item.shops = [
+      { name: '네이버쇼핑', logo: '🛔️', url: item.link || '#', price: item.lprice || 0, badge: '최저가' }
+    ];
+  }
+  _registerItem(item);
+  return item;
+}
 
 function toggleCompare(event, itemId) {
   event.stopPropagation();
@@ -754,18 +839,25 @@ function downloadFile(c, f, m) { _downloadFile(c, f, m); }
 
 /* ===== 유틸 ===== */
 function findItemById(id) {
-  // 홈그리드, 검색그리드에서 찾기
+  // 1순위: 내부 레지스트리 (shops 완전 보존)
+  const regItem = _getItem(id);
+  if (regItem) return regItem;
+
+  // 2순위: DOM 카드에서 직접 참조
   const grids = ['homeGrid', 'searchGrid', 'wishlistGrid'];
   for (const gid of grids) {
     const grid = document.getElementById(gid);
     if (grid) {
       const cards = grid.querySelectorAll('.product-card');
       for (const card of cards) {
-        if (card._item && card._item.id === id) return card._item;
+        if (card._item && card._item.id === id) {
+          _registerItem(card._item); // 레지스트리에 등록
+          return card._item;
+        }
       }
     }
   }
-  // wishlist/compare에서도 찾기
+  // 3순위: wishlist/compare에서도 찾기
   let found = state.wishlist.find(w => w.id === id);
   if (found) return found;
   found = state.compareList.find(c => c.id === id);
@@ -828,5 +920,9 @@ function escAttr(str) {
 
 /* ===== 초기 로드 ===== */
 window.addEventListener('DOMContentLoaded', () => {
+  // localStorage에서 불러온 아이템을 registry에 등록
+  state.wishlist.forEach(item => _registerItem(item));
+  state.compareList.forEach(item => _registerItem(item));
+
   selectCategory('축구화', document.querySelector('.tab-btn.active'));
 });
