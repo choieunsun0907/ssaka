@@ -415,7 +415,7 @@ function renderWishlist() {
 }
 
 /* ===== 비교 ===== */
-const MAX_COMPARE = 6;
+const MAX_COMPARE = 8;
 
 // compareList 아이템들 registry에 등록 (shops가 없으면 API로 보완)
 async function _ensureShops(item) {
@@ -458,24 +458,23 @@ function toggleCompare(event, itemId) {
 
   const idx = state.compareList.findIndex(c => c.id === itemId);
   if (idx >= 0) {
-    // 이미 비교 중 → 제거
     state.compareList.splice(idx, 1);
     showToast('비교 목록에서 제거됐어요');
+    localStorage.setItem('compareList', JSON.stringify(state.compareList));
+    refreshCards();
+    updateCompareBadge();
   } else {
     if (state.compareList.length >= MAX_COMPARE) {
-      // ✅ FIFO 자동교체: 가장 먼저 추가한 상품 자동 제거 후 새 상품 추가
-      const removed = state.compareList.shift();
-      state.compareList.push(item);
-      const removedName = (removed.title || '').slice(0, 14);
-      showToast(`🔄 "${removedName}.." 제거 → 새 상품 추가됐어요!`);
+      // ✅ 확인 팝업: 제거할 상품 선택
+      showCompareFullModal(item);
     } else {
       state.compareList.push(item);
       showToast(`📊 비교 목록에 추가됐어요! (${state.compareList.length}/${MAX_COMPARE})`);
+      localStorage.setItem('compareList', JSON.stringify(state.compareList));
+      refreshCards();
+      updateCompareBadge();
     }
   }
-  localStorage.setItem('compareList', JSON.stringify(state.compareList));
-  refreshCards();
-  updateCompareBadge();
 }
 
 function toggleCompareFromDetail(itemId) {
@@ -483,24 +482,122 @@ function toggleCompareFromDetail(itemId) {
   if (!item) return;
   const idx = state.compareList.findIndex(c => c.id === itemId);
   if (idx >= 0) {
-    // 이미 비교 중 → 제거
     state.compareList.splice(idx, 1);
     showToast('비교 목록에서 제거됐어요');
+    localStorage.setItem('compareList', JSON.stringify(state.compareList));
+    refreshCards();
+    updateCompareBadge();
   } else {
     if (state.compareList.length >= MAX_COMPARE) {
-      // ✅ FIFO 자동교체
-      const removed = state.compareList.shift();
-      state.compareList.push(item);
-      const removedName = (removed.title || '').slice(0, 14);
-      showToast(`🔄 "${removedName}.." 제거 → 새 상품 추가됐어요!`);
+      showCompareFullModal(item);
     } else {
       state.compareList.push(item);
       showToast(`📊 비교 목록에 추가됐어요! (${state.compareList.length}/${MAX_COMPARE})`);
+      localStorage.setItem('compareList', JSON.stringify(state.compareList));
+      refreshCards();
+      updateCompareBadge();
     }
   }
+}
+
+/* ===== 비교 목록 꽉 찼을 때 교체 확인 모달 ===== */
+function showCompareFullModal(newItem) {
+  // 기존 모달 제거
+  const existing = document.getElementById('compareFullModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'compareFullModal';
+  modal.style.cssText = `
+    position:fixed;top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.55);z-index:9999;
+    display:flex;align-items:center;justify-content:center;padding:16px;
+  `;
+
+  const newTitle = (newItem.title || '').slice(0, 20);
+  const listHTML = state.compareList.map((item, i) => `
+    <div class="cmp-modal-row" onclick="replaceCompareItem(${i}, '${String(newItem.id).replace(/'/g,"\'")}')">
+      <img src="${item.image || ''}" onerror="this.style.display='none'" 
+           style="width:44px;height:44px;object-fit:cover;border-radius:6px;flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          ${(item.title || '').slice(0, 28)}
+        </div>
+        <div style="font-size:12px;color:#E8950E;font-weight:700;margin-top:2px;">
+          ${(item.lprice || 0).toLocaleString()}원
+        </div>
+      </div>
+      <span style="font-size:12px;color:#fff;background:#1976D2;border-radius:6px;padding:4px 10px;flex-shrink:0;font-weight:600;">교체</span>
+    </div>
+  `).join('');
+
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;
+                box-shadow:0 8px 40px rgba(0,0,0,0.18);overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#1976D2,#42A5F5);padding:18px 20px;">
+        <div style="font-size:16px;font-weight:700;color:#fff;">📊 비교 목록이 가득 찼어요</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px;">
+          <strong style="color:#FFD54F;">"${newTitle}..."</strong> 추가를 위해<br>교체할 상품을 선택해주세요
+        </div>
+      </div>
+      <div style="padding:12px 16px;max-height:340px;overflow-y:auto;">
+        <div style="font-size:12px;color:#888;margin-bottom:8px;">👇 아래 상품 중 하나를 선택하면 교체됩니다</div>
+        <div id="cmpModalList" style="display:flex;flex-direction:column;gap:8px;">
+          ${listHTML}
+        </div>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid #f0f0f0;display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="document.getElementById('compareFullModal').remove()"
+          style="padding:9px 20px;border:1.5px solid #ddd;border-radius:8px;
+                 background:#fff;color:#666;font-size:13px;font-weight:600;cursor:pointer;">
+          취소
+        </button>
+      </div>
+    </div>
+  `;
+
+  // 배경 클릭 시 닫기
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+
+  document.body.appendChild(modal);
+
+  // 모달 행 hover 스타일 동적 적용
+  modal.querySelectorAll('.cmp-modal-row').forEach(row => {
+    row.style.cssText = `display:flex;align-items:center;gap:10px;padding:10px 12px;
+      border:1.5px solid #e8e8e8;border-radius:10px;cursor:pointer;transition:all 0.15s;`;
+    row.addEventListener('mouseenter', () => {
+      row.style.background = '#EBF5FF';
+      row.style.borderColor = '#1976D2';
+    });
+    row.addEventListener('mouseleave', () => {
+      row.style.background = '';
+      row.style.borderColor = '#e8e8e8';
+    });
+  });
+
+  // 새 아이템을 임시 저장 (replaceCompareItem에서 사용)
+  window._pendingCompareItem = newItem;
+}
+
+function replaceCompareItem(removeIdx, newItemId) {
+  const newItem = window._pendingCompareItem;
+  if (!newItem) return;
+
+  const removedTitle = (state.compareList[removeIdx]?.title || '').slice(0, 14);
+  state.compareList.splice(removeIdx, 1);
+  state.compareList.push(newItem);
+
   localStorage.setItem('compareList', JSON.stringify(state.compareList));
   refreshCards();
   updateCompareBadge();
+
+  document.getElementById('compareFullModal')?.remove();
+  window._pendingCompareItem = null;
+
+  showToast(`🔄 "${removedTitle}.." 제거 → 새 상품 추가됐어요!`);
+  if (state.currentPage === 'compare') renderCompare();
 }
 
 function updateCompareBadge() {

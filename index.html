@@ -123,7 +123,15 @@
 <!-- ===== 상세 페이지 ===== -->
 <div id="page-detail" class="page">
   <div class="container">
-    <button class="back-btn" onclick="goBack()">← 뒤로가기</button>
+    <div class="page-nav-bar">
+      <button class="back-btn" onclick="goBack()">← 이전 페이지</button>
+      <div class="page-nav-links">
+        <button class="nav-link-btn" onclick="showPage('home')">🏠 홈</button>
+        <button class="nav-link-btn" onclick="showPage('search')">🔍 검색결과</button>
+        <button class="nav-link-btn" onclick="showPage('compare')">📊 비교</button>
+        <button class="nav-link-btn" onclick="showPage('wishlist')">❤️ 위시리스트</button>
+      </div>
+    </div>
     <div class="detail-wrap" id="detailContent"></div>
   </div>
 </div>
@@ -147,12 +155,20 @@
 
     <!-- ── 비교 헤더 ── -->
     <div class="cmp-header">
+      <div class="page-nav-bar">
+        <button class="back-btn" onclick="goBack()">← 이전 페이지</button>
+        <div class="page-nav-links">
+          <button class="nav-link-btn" onclick="showPage('home')">🏠 홈</button>
+          <button class="nav-link-btn" onclick="showPage('search')">🔍 검색결과</button>
+          <button class="nav-link-btn" onclick="showPage('wishlist')">❤️ 위시리스트</button>
+        </div>
+      </div>
       <div class="cmp-header-top">
         <div class="cmp-title-group">
           <h2 class="cmp-title">📊 상품 비교</h2>
-          <span class="cmp-badge" id="compareCountBadge">0 / 6</span>
+          <span class="cmp-badge" id="compareCountBadge">0 / 8</span>
         </div>
-        <p class="cmp-sub">최대 6개 상품 비교 · 꽉 찼 시 가장 먼저 추가한 상품 자동 교체 · 카드 클릭 → 상품코드·가격·링크 저장</p>
+        <p class="cmp-sub">최대 8개 상품 비교 · 가득 찼을 때 교체할 상품 직접 선택 · 카드 클릭 → 상품코드·가격·링크 저장</p>
       </div>
     </div>
 
