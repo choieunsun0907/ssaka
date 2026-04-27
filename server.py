@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────
 # 네이버 쇼핑 API
 # ──────────────────────────────────────────
-def search_naver(query, display=20, start=1, sort='sim'):
+def search_naver(query, display=20, start=1, sort='rel'):
     """네이버 쇼핑 API 검색"""
     encoded_query = urllib.parse.quote(query)
     url = (
@@ -74,11 +74,14 @@ def build_shop_links(title, link, product_id, mall_name, lprice):
     encoded_title = urllib.parse.quote(clean_title)
     base_price    = int(lprice) if lprice else 0
 
-    # 네이버쇼핑 URL
-    if product_id:
-        naver_url = f'https://search.shopping.naver.com/catalog/{product_id}'
-    elif link:
+    # ✅ 네이버쇼핑 URL 우선순위:
+    # 1순위: 실제 상품 link (가장 정확한 상품 페이지)
+    # 2순위: productId로 카탈로그 페이지
+    # 3순위: 검색 결과 페이지
+    if link:
         naver_url = link
+    elif product_id:
+        naver_url = f'https://search.shopping.naver.com/catalog/{product_id}'
     else:
         naver_url = f'https://search.shopping.naver.com/search/all?query={encoded_title}'
 
