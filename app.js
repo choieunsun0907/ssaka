@@ -12,16 +12,20 @@ const state = {
   currentDetail: null,
 };
 
-/* ===== API 베이스 URL (절대경로 자동 감지) ===== */
-// GitHub Pages는 정적호스팅이라 server.py 실행 불가
-// → API 서버는 price.ssakasports.com 에서 담당
+/* ===== API 베이스 URL ===== */
+// GitHub Pages / price.ssakasports.com 둘 다 샌드박스 API 서버 사용 (임시)
 // → 로컬:         http://localhost:5060
 // → 샌드박스:     https://5060-i8633dkrgikcaiinfwstx-5c13a017.sandbox.novita.ai/
-// → GitHub Pages: https://choieunsun0907.github.io/ai/  (API → price.ssakasports.com)
-// → 실제서버:     https://price.ssakasports.com/
-const BASE_URL = (window.location.hostname === 'choieunsun0907.github.io')
-  ? 'https://price.ssakasports.com'   // GitHub Pages → API 서버 별도 지정
-  : window.location.origin;            // 그 외 환경은 자동 감지
+// → GitHub Pages: https://choieunsun0907.github.io/ai/  (API → 샌드박스)
+// → 실제서버:     https://price.ssakasports.com/        (API → 샌드박스)
+const SANDBOX_API = 'https://5060-i8633dkrgikcaiinfwstx-5c13a017.sandbox.novita.ai';
+
+const BASE_URL = (
+  window.location.hostname === 'choieunsun0907.github.io' ||
+  window.location.hostname === 'price.ssakasports.com'
+)
+  ? SANDBOX_API          // GitHub Pages / 실제서버 → 샌드박스 API
+  : window.location.origin;  // 로컬 / 샌드박스 직접 접속 → 자동 감지
 
 /* ===== API 호출 ===== */
 async function apiSearch(query, sort = 'sim', start = 1, display = 20) {
