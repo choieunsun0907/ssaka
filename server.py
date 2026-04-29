@@ -172,62 +172,54 @@ class PriceHubHandler(SimpleHTTPRequestHandler):
 
     # ── 검색 API ──
     def handle_search(self, params):
-        query     = params.get('q', [''])[0]
-        sort      = params.get('sort', ['sim'])[0]
-        display   = int(params.get('display', ['20'])[0])
-        start     = int(params.get('start', ['1'])[0])
-        mall_tab  = params.get('mall_type', [''])[0]  # 탭: ''=전체, '1'=가격비교, '2'=백화점/홈쇼핑, '3'=쇼핑원도, '4'=네이버페이, 'overseas'=해외직구
+        query    = params.get('q', [''])[0]
+        sort     = params.get('sort', ['sim'])[0]
+        display  = int(params.get('display', ['20'])[0])
+        start    = int(params.get('start', ['1'])[0])
+        mall_tab = params.get('mall_type', [''])[0]
+        # mall_tab: '' = 전체, 'price' = 가격비교(productType=1),
+        #           'npay' = 네이버페이/스마트스토어(productType=2),
+        #           'open' = 쇼핑원도(productType=2 중 스마트스토어 외),
+        #           'overseas' = 해외직구(cbshop 포함)
 
-        # display 범위 제한 (1~100), 탭 필터 시 더 많이 가져와서 필터링
-        display = max(1, min(100, display))
+        display  = max(1, min(100, display))
         overseas = (mall_tab == 'overseas')
-
-        # 백화점/홈쇼핑 몰 도메인 목록
-        DEPT_DOMAINS = {
-            'lotteon.com', 'lotte.com', 'ssg.com', 'shinsegae.com',
-            'hyundaihmall.com', 'galleria.co.kr', 'akplaza.com',
-            'hmall.com', 'gsshop.com', 'cjonstyle.com', 'imall.com',
-            'lotteimall.com', 'wemakeprice.com', 'tmon.co.kr',
-        }
-        # 네이버페이 사용 도메인
-        NPAY_DOMAINS = {
-            'smartstore.naver.com', 'shopping.naver.com',
-            'brand.naver.com', 'edigitalworld.com',
-        }
 
         if not query:
             self.send_json({'error': '검색어를 입력하세요', 'items': []})
             return
 
         try:
-            # 탭 필터 시 충분한 데이터 확보를 위해 더 많이 조회
-            fetch_display = display if not mall_tab else min(100, display * 5)
-            data  = search_naver(query, display=fetch_display, start=start, sort=sort, overseas=overseas)
-            items = data.get('items', [])
-            total = data.get('total', 0)
+            # 탭 필터 시 100개 가져와서 클라이언트 필터링 (API 제약으로 최대 100)
+            fetch_display = 100 if mall_tab in ('price', 'npay', 'open') else display
+            data  = search_naver(query, display=fetch_display, start=start,
+                                 sort=sort, overseas=overseas)
+            raw_items = data.get('items', [])
+            total     = data.get('total', 0)
 
-            def classify_item(item):
-                """아이템의 탭 분류 반환"""
+            def classify(item):
+                """productType 기반 탭 분류
+                productType=1 → 네이버 카탈로그(가격비교 페이지)
+                productType=2 → 개별 판매자 상품
+                  - 링크가 smartstore.naver.com → 네이버페이(스마트스토어)
+                  - 그 외 → 쇼핑원도(외부 몰)
+                """
                 pt   = str(item.get('productType', ''))
                 link = item.get('link', '')
-                domain = link.split('/')[2].replace('www.','') if '//' in link else ''
-
                 if pt == '1':
-                    return 'price'        # 가격비교 (네이버 카탈로그)
-                if domain in NPAY_DOMAINS or 'smartstore.naver.com' in link:
-                    return 'npay'         # 네이버페이 (스마트스토어)
-                if any(d in domain for d in DEPT_DOMAINS):
-                    return 'dept'         # 백화점/홈쇼핑
-                return 'open'            # 쇼핑원도 (기타 개별몰)
+                    return 'price'
+                if 'smartstore.naver.com' in link or 'brand.naver.com' in link:
+                    return 'npay'
+                return 'open'
 
             results = []
-            for item in items:
+            for item in raw_items:
                 title       = item.get('title', '')
                 clean_title = title.replace('<b>', '').replace('</b>', '')
                 lprice      = item.get('lprice', '0')
                 hprice      = item.get('hprice', '0') or lprice
                 link        = item.get('link', '')
-                tab_class   = classify_item(item)
+                tab_cls     = classify(item)
 
                 shops = build_shop_links(
                     title, link,
@@ -247,31 +239,31 @@ class PriceHubHandler(SimpleHTTPRequestHandler):
                     'link':        link,
                     'shops':       shops,
                     'productType': item.get('productType', ''),
-                    'tabClass':    tab_class,   # price/npay/dept/open
+                    'tabClass':    tab_cls,
                 })
 
-            # 탭별 필터링
-            TAB_FILTER = {
-                '':         lambda r: True,
-                '1':        lambda r: r['tabClass'] == 'price',
-                '4':        lambda r: r['tabClass'] == 'npay',
-                '2':        lambda r: r['tabClass'] == 'dept',
-                '3':        lambda r: r['tabClass'] == 'open',
-                'overseas': lambda r: True,   # overseas는 API 단에서 처리됨
-            }
-            filt = TAB_FILTER.get(mall_tab, lambda r: True)
-            filtered = [r for r in results if filt(r)][:display]
-
-            # 탭별 카운트 (전체 results 기준)
+            # 탭별 카운트
             tab_counts = {
-                'all':      len(results),
-                'price':    sum(1 for r in results if r['tabClass'] == 'price'),
-                'npay':     sum(1 for r in results if r['tabClass'] == 'npay'),
-                'dept':     sum(1 for r in results if r['tabClass'] == 'dept'),
-                'open':     sum(1 for r in results if r['tabClass'] == 'open'),
+                'all':   len(results),
+                'price': sum(1 for r in results if r['tabClass'] == 'price'),
+                'npay':  sum(1 for r in results if r['tabClass'] == 'npay'),
+                'open':  sum(1 for r in results if r['tabClass'] == 'open'),
             }
 
-            logger.info(f'검색: "{query}" tab={mall_tab!r} → {len(filtered)}개 (총 {total}개)')
+            # 탭 필터 적용
+            if mall_tab == 'price':
+                filtered = [r for r in results if r['tabClass'] == 'price']
+            elif mall_tab == 'npay':
+                filtered = [r for r in results if r['tabClass'] == 'npay']
+            elif mall_tab == 'open':
+                filtered = [r for r in results if r['tabClass'] == 'open']
+            else:
+                filtered = results  # 전체 or 해외직구
+
+            filtered = filtered[:display]
+
+            logger.info(f'검색: "{query}" tab={mall_tab!r} → {len(filtered)}개 (총 {total}개) '
+                        f'[price={tab_counts["price"]} npay={tab_counts["npay"]} open={tab_counts["open"]}]')
             self.send_json({
                 'query':      query,
                 'total':      total,

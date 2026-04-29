@@ -51,9 +51,7 @@ const BASE_URL = (
 /* ===== API 호출 ===== */
 async function apiSearch(query, sort = 'sim', start = 1, display = 20, mallType = '') {
   let url = `${BASE_URL}/api/search?q=${encodeURIComponent(query)}&sort=${sort}&start=${start}&display=${display}`;
-  if (mallType === 'overseas') {
-    url += '&overseas=1';
-  } else if (mallType) {
+  if (mallType) {
     url += `&mall_type=${mallType}`;
   }
   const res = await fetch(url);
@@ -151,7 +149,14 @@ function renderSearchResults(items, append) {
     grid.appendChild(createProductCard(item));
   });
   if (items.length === 0 && !append) {
-    grid.innerHTML = `<div style="padding:48px;color:#999;grid-column:1/-1;text-align:center;">🔍 검색 결과가 없어요</div>`;
+    const tab = state.currentMallType;
+    const tabMsgs = {
+      'open': `<div style="padding:48px;color:#999;grid-column:1/-1;text-align:center;">
+        🏪 이 검색어는 쇼핑원도(외부몰) 결과가 없어요<br>
+        <small style="font-size:12px;margin-top:8px;display:block">전체 탭에서 검색해보세요</small>
+      </div>`,
+    };
+    grid.innerHTML = tabMsgs[tab] || `<div style="padding:48px;color:#999;grid-column:1/-1;text-align:center;">🔍 검색 결과가 없어요</div>`;
   }
 }
 
@@ -215,7 +220,7 @@ async function _reloadSearchResults() {
 }
 
 function _getMallTypeLabel(mallType) {
-  const map = { '': '', '1': '가격비교', '2': '백화점/홈쇼핑', '3': '쇼핑원도', '4': '네이버페이', 'overseas': '해외직구' };
+  const map = { '': '', 'price': '가격비교', 'npay': '네이버페이', 'open': '쇼핑원도', 'overseas': '해외직구' };
   return map[mallType] || '';
 }
 
@@ -234,7 +239,7 @@ function _updateTabCounts(counts, total) {
     span.textContent = total > 0 ? ` ${total.toLocaleString()}` : '';
   }
   // 각 탭 카운트
-  const tabMap = { '1': counts.price, '4': counts.npay, '2': counts.dept, '3': counts.open };
+  const tabMap = { 'price': counts.price, 'npay': counts.npay, 'open': counts.open };
   Object.entries(tabMap).forEach(([mt, cnt]) => {
     const tab = document.querySelector(`.filter-tab[data-mall-type="${mt}"]`);
     if (!tab) return;
